@@ -1,7 +1,6 @@
 const axios = require('axios');
 const cloudinary = require('cloudinary').v2;
 
-// Cấu hình Cloudinary (sẽ tự động lấy từ biến môi trường)
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
@@ -34,7 +33,6 @@ exports.handler = async (event) => {
     const { images } = JSON.parse(event.body);
 
     try {
-        // --- BƯỚC 1: Tải ảnh lên Cloudinary ---
         const uploadPromises = images.map(async (base64Image) => {
             const response = await cloudinary.uploader.upload(base64Image, { resource_type: "image" });
             const imageBuffer = Buffer.from(base64Image.split(',')[1], 'base64');
@@ -42,22 +40,22 @@ exports.handler = async (event) => {
         });
         const uploadedImages = await Promise.all(uploadPromises);
 
-        // --- BƯỚC 2: Lấy mô tả cho từng ảnh ---
         const captionPromises = uploadedImages.map(async (image) => {
-            const result = await queryHuggingFace("nlpconnect/vit-gpt2-image-captioning", image.binaryData, HF_ACCESS_TOKEN);
+            // *** THAY ĐỔI MÔ HÌNH CAPTION ***
+            const result = await queryHuggingFace("Salesforce/blip-image-captioning-base", image.binaryData, HF_ACCESS_TOKEN);
             if (!result || !result[0] || !result[0].generated_text) throw new Error("Captioning failed");
             return { url: image.url, caption: result[0].generated_text };
         });
         const imageAnalyses = await Promise.all(captionPromises);
 
-        // --- BƯỚC 3: Sắp xếp các mô tả ---
         let prompt = `Analyze the following image captions and return a JSON array of the image URLs, sorted in a logical storytelling order. Only output the JSON array.\n\nCaptions and URLs:\n`;
         imageAnalyses.forEach(item => {
             prompt += `Caption: "${item.caption}", URL: ${item.url}\n`;
         });
             
         const sortPayload = { inputs: prompt, parameters: { max_new_tokens: 512 } };
-        const sortResult = await queryHuggingFace("HuggingFaceH4/zephyr-7b-beta", sortPayload, HF_ACCESS_TOKEN);
+        // *** THAY ĐỔI MÔ HÌNH SẮP XẾP ***
+        const sortResult = await queryHuggingFace("mistralai/Mistral-7B-Instruct-v0.2", sortPayload, HF_ACCESS_TOKEN);
         if (!sortResult || !sortResult[0] || !sortResult[0].generated_text) throw new Error("Sorting failed");
             
         const aiResponseText = sortResult[0].generated_text;
