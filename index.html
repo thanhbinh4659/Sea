@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Sắp Xếp Ảnh</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>AI Sắp Xếp Ảnh</h1>
+        <p>Tải ảnh lên và để AI tự động sắp xếp thành một câu chuyện.</p>
+    </header>
+    <main>
+        <div class="upload-section">
+            <input type="file" id="imageUpload" multiple accept="image/*" style="display: none;">
+            <button id="uploadButton">Chọn Ảnh</button>
+        </div>
+        <div id="status" class="status"></div>
+        <div id="image-container" class="image-container">
+            <!-- Ảnh sẽ được hiển thị ở đây -->
+        </div>
+    </main>
+    <script src="script.js"></script>
+</body>
+</html>
