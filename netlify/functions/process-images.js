@@ -35,10 +35,8 @@ exports.handler = async (event) => {
             const imageData = base64Image.split(',')[1];
             formData.append('image', imageData);
 
-            // *** SỬA LỖI DUY NHẤT Ở ĐÂY ***
-            const response = await axios.post(`https://api.imgbb.com/1/upload.json?key=${IMGBB_API_KEY}`, formData, {
-                headers: formData.getHeaders()
-            });
+            // *** SỬA LỖI DUY NHẤT Ở ĐÂY: Xóa phần headers ***
+            const response = await axios.post(`https://api.imgbb.com/1/upload.json?key=${IMGBB_API_KEY}`, formData);
 
             if (!response.data.success) throw new Error(`ImgBB Error: ${response.data.data.error}`);
             return { url: response.data.data.url, binaryData: Buffer.from(imageData, 'base64') };
