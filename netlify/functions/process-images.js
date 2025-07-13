@@ -7,7 +7,6 @@ exports.handler = async (event) => {
 
     const { images } = JSON.parse(event.body);
 
-    // --- BƯỚC 1: Tải ảnh lên ImgBB VÀ giữ lại dữ liệu ảnh gốc ---
     const uploadAndPreparePromises = images.map(async (base64Image) => {
         const formData = new FormData();
         const imageData = base64Image.split(',')[1];
@@ -22,40 +21,38 @@ exports.handler = async (event) => {
             throw new Error(`Lỗi tải ảnh lên ImgBB: ${result.error.message}`);
         }
             
-        // *** THAY ĐỔI QUAN TRỌNG 1: Trả về cả URL và dữ liệu ảnh gốc ***
         return { 
             url: result.data.url, 
-            binaryData: Buffer.from(imageData, 'base64') // Chuyển base64 thành dữ liệu nhị phân
+            binaryData: Buffer.from(imageData, 'base64')
         };
     });
 
     const uploadedImages = await Promise.all(uploadAndPreparePromises);
 
-    // --- BƯỚC 2: Lấy mô tả cho từng ảnh từ Hugging Face ---
     const captionPromises = uploadedImages.map(async (image) => {
-        // *** THAY ĐỔI QUAN TRỌNG 2: Gửi dữ liệu nhị phân thay vì URL ***
+        // *** THAY ĐỔI DUY NHẤT Ở ĐÂY ***
         const response = await fetch(
-            "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-large",
+            "https://api-inference.huggingface.co/models/nlpconnect/vit-gpt2-image-captioning", // <-- ĐÃ THAY ĐỔI MÔ HÌNH
             {
                 headers: { 
                     Authorization: `Bearer ${HF_ACCESS_TOKEN}`,
-                    "Content-Type": "application/octet-stream" // Báo cho HF biết đây là dữ liệu nhị phân
+                    "Content-Type": "application/octet-stream"
                 },
                 method: "POST",
-                body: image.binaryData, // Gửi thẳng dữ liệu ảnh
+                body: image.binaryData,
             }
         );
         const result = await response.json();
-        // Thêm kiểm tra lỗi nếu mô hình đang tải
         if (result.error) {
-            throw new Error(`Lỗi từ Hugging Face: ${result.error}`);
+            // Thêm log chi tiết hơn để gỡ lỗi
+            console.error("Hugging Face Error:", result.error);
+            throw new Error(`Lỗi từ Hugging Face (Captioning): ${result.error}`);
         }
         return { url: image.url, caption: result[0].generated_text };
     });
 
     const imageAnalyses = await Promise.all(captionPromises);
 
-    // --- BƯỚC 3: Gửi các mô tả để AI sắp xếp (Giữ nguyên) ---
     let prompt = "Dưới đây là danh sách các bức ảnh được mô tả bằng caption. Hãy sắp xếp chúng theo một trình tự kể chuyện hợp lý nhất. Chỉ trả về một mảng JSON chứa các URL của ảnh theo đúng thứ tự đã sắp xếp.\n\n";
     imageAnalyses.forEach(item => {
         prompt += `Caption: "${item.caption}", URL: ${item.url}\n`;
@@ -71,6 +68,10 @@ exports.handler = async (event) => {
         }
     );
     const sortResult = await sortResponse.json();
+    if (sortResult.error) {
+        console.error("Hugging Face Sort Error:", sortResult.error);
+        throw new Error(`Lỗi từ Hugging Face (Sorting): ${sortResult.error}`);
+    }
     const aiResponseText = sortResult[0].generated_text;
         
     const jsonMatch = aiResponseText.match(/\[\s*".*?"\s*\]/s);
@@ -85,7 +86,6 @@ exports.handler = async (event) => {
         sortedUrls = uploadedImages.map(img => img.url);
     }
 
-    // --- BƯỚC 4: Trả kết quả về cho trình duyệt ---
     return {
         statusCode: 200,
         body: JSON.stringify({ sortedImageUrls: sortedUrls }),
